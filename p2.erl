@@ -9,8 +9,8 @@
 
 -export([crearListaArboles/1]).
 -export([sortAscendingArboles/1]).
-
 -export([huffman/1]).
+-export([tablaSimbolos/1]).
 
 %https://stackoverflow.com/questions/14447575/reading-file-whole-flat-text-file-to-an-array
 
@@ -54,6 +54,12 @@ huffman([{[F1|E1],I1,D1},{[F2|E2],I2,D2}|[]])
 huffman([{[F1|E1],I1,D1},{[F2|E2],I2,D2}|T])
 	-> Suma = F1+F2, NuevaRaiz = [Suma|null], Arb = {NuevaRaiz,{[F1|E1],I1,D1},{[F2|E2],I2,D2}},
 	ListaActualizada = [Arb] ++ T, huffman(sortAscendingArboles(ListaActualizada)).
+
+
+tablaSimbolos({})->[];
+tablaSimbolos(Arb) -> tablaSimbolos(Arb,[]).
+tablaSimbolos({[_F|E],{},{}},Path) -> [{E,Path}];
+tablaSimbolos({_R,I,D},Path) -> tablaSimbolos(I,Path++[0])++tablaSimbolos(D,Path++[1]).
 
 
 
