@@ -12,6 +12,14 @@
 -export([huffman/1]).
 -export([tablaSimbolos/1]).
 
+-export([compress/1]).
+-export([findCode/2]).
+-export([toCode/2]).
+-export([toBytes/1]).
+-export([ext/1]).
+-export([countValues/1]).
+-export([completeByte/1]).
+
 %https://stackoverflow.com/questions/14447575/reading-file-whole-flat-text-file-to-an-array
 
 %Leer contenido de archivo a binario:
@@ -31,22 +39,19 @@ getSymbolsNumber([H|T])->Number = countSymbol(H,T) , [[1 + Number|H]] ++
 								  getSymbolsNumber(T--generateList(H,Number)).
 
 %Generar arbol a partir de lista de simbolos:
-
-
 %Ordenar lista generada por getSymbolsNumber de mayor a menor segun la Frecuencia. Basado en Quicksort
 sortAscending([]) -> [];
 sortAscending([[Pivot|Char]|T]) -> sortAscending([[X|Y] || [X|Y] <- T, X < Pivot]) ++ [[Pivot|Char]] ++ sortAscending([[X|Y] || [X|Y] <- T, X >= Pivot]).
-
 
 crearListaArboles([]) -> [];
 crearListaArboles(L) -> crearListaArboles(L,[]).
 crearListaArboles([],Aux) -> Aux;
 crearListaArboles([[F|E]|T],Aux) -> Laux = Aux ++ [{[F|E],{},{}}], crearListaArboles(T,Laux).
 
-
 sortAscendingArboles([]) -> [];
-sortAscendingArboles([{[Pivot|Char],I,D}|T]) -> sortAscendingArboles([{[X|Y],I,D} || {[X|Y],I,D} <- T, X < Pivot]) ++ [{[Pivot|Char],I,D}] ++ sortAscendingArboles([{[X|Y],I,D} || {[X|Y],I,D} <- T, X >= Pivot]).
-
+sortAscendingArboles([{[Pivot|Char],I,D}|T]) -> sortAscendingArboles([{[X|Y],I,D} || {[X|Y],I,D} <- T, X < Pivot]) ++ 
+												[{[Pivot|Char],I,D}] ++ 
+												sortAscendingArboles([{[X|Y],I,D} || {[X|Y],I,D} <- T, X >= Pivot]).
 huffman([]) -> [];
 huffman([Arb|[]]) -> Arb;
 huffman([{[F1|E1],I1,D1},{[F2|E2],I2,D2}|[]]) 
@@ -55,13 +60,40 @@ huffman([{[F1|E1],I1,D1},{[F2|E2],I2,D2}|T])
 	-> Suma = F1+F2, NuevaRaiz = [Suma|null], Arb = {NuevaRaiz,{[F1|E1],I1,D1},{[F2|E2],I2,D2}},
 	ListaActualizada = [Arb] ++ T, huffman(sortAscendingArboles(ListaActualizada)).
 
-
 tablaSimbolos({})->[];
 tablaSimbolos(Arb) -> tablaSimbolos(Arb,[]).
 tablaSimbolos({[_F|E],{},{}},Path) -> [{E,Path}];
 tablaSimbolos({_R,I,D},Path) -> tablaSimbolos(I,Path++[0])++tablaSimbolos(D,Path++[1]).
 
+findCode(_S,[])->[];
+findCode(S,[{Symbol,Code}|_T]) when Symbol == S -> Code;
+findCode(S,[_H|T])-> findCode(S,T).
 
+toCode([],_T)->[];
+toCode([H|T],Table)-> findCode(H,Table) ++ toCode(T,Table).
+
+countValues([])->0;
+countValues([_H|T])->countValues(T)+1.
+completeByte(L)->completeByte(L,countValues(L)).
+completeByte(L,X) when X > 7->L;
+completeByte(L,_X)-> completeByte(L ++ [0],countValues(L)+1).
+
+
+toBytes(L)-> toBytes(L,8,[]).
+toBytes([],_N,Acum)->[completeByte(Acum)];
+toBytes([H|T],1,Acum)-> [Acum ++ [H]] ++ toBytes(T,8,[]);
+toBytes([H|T],N,Acum)-> toBytes(T,N-1,Acum++[H]).
+
+ext(Filename) -> ext(Filename, "").
+ext([46 | Rest], _)  -> ext(Rest, Rest);
+ext([_ | Rest], Acc) -> ext(Rest, Acc);
+ext(_, Acc)-> Acc. 
+
+compress(F) -> BinList = getBinaryToList(F), 
+			   Tabla = tablaSimbolos(huffman(crearListaArboles(sortAscending(getSymbolsNumber(BinList))))),
+			   Code = toCode(BinList,Tabla),
+			   Compress = {toBytes(Code), Tabla, ext(F)},
+			   file:write_file("", Compress).
 
 
 
