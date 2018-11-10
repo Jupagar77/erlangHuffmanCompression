@@ -20,6 +20,8 @@
 -export([completeByte/1]).
 -export([decompress/1]).
 
+-export([crearArbolHuffman/1]).
+
 %COMPRESOR
 
 %Leer contenido de archivo a binario:
@@ -89,7 +91,7 @@ completeByte(L,_X)-> completeByte(L ++ [0],countValues(L)+1).
 compress(F) -> BinList = getBinaryToList(F), 
 			   Tabla = tablaSimbolos(huffman(crearListaArboles(sortAscending(getSymbolsNumber(BinList))))),
 			   Code = toCode(BinList,Tabla),
-			   Compress = [Code, Tabla, filename:extension(F)],
+			   Compress = [Tabla,Code,filename:extension(F)],
 			   file:write_file(filename:rootname(F),erlang:term_to_binary(Compress)),
 			   Compress.
 
@@ -97,3 +99,26 @@ compress(F) -> BinList = getBinaryToList(F),
 %DECOMPRESOR
 
 decompress(F)->erlang:binary_to_term(getFileContent(F)).
+
+
+crearArbolHuffman([]) -> {};
+crearArbolHuffman(L) -> crearArbolHuffman(L,{root,{},{}}).
+crearArbolHuffman([],Arb) -> Arb;
+crearArbolHuffman([[Char|[L|_]]|T],Arb) -> Arbol = crearArbolHuffmanInterno(Char,L,Arb), crearArbolHuffman(T,Arbol).
+
+crearArbolHuffmanInterno(Char,[],_Arb) -> {Char,{},{}};
+crearArbolHuffmanInterno(Char,[Val|T],{}) when Val =:= 0 -> {null,crearArbolHuffmanInterno(Char,T,{}),{}};
+crearArbolHuffmanInterno(Char,[Val|T],{}) when Val =:= 1 -> {null,{},crearArbolHuffmanInterno(Char,T,{})};
+crearArbolHuffmanInterno(Char,[Val|T],{R,I,D}) when Val =:= 0 -> {R,crearArbolHuffmanInterno(Char,T,I),D};
+crearArbolHuffmanInterno(Char,[Val|T],{R,I,D}) when Val =:= 1 -> {R,I,crearArbolHuffmanInterno(Char,T,D)}.
+
+
+
+%[[97,[0]],
+%  [32,[1,0]],
+%  [116,[1,1,0,0]],
+%  [108,[1,1,0,1]],
+%  [99,[1,1,1,0]],
+%  [115,[1,1,1,1,0]],
+%  [106,[1,1,1,1,1,0]],
+%  [101,[1,1,1,1,1,1]]]
