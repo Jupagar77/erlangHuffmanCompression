@@ -15,12 +15,12 @@
 -export([compress/1]).
 -export([findCode/2]).
 -export([toCode/2]).
--export([toBytes/1]).
--export([ext/1]).
+%-export([toBytes/1]).
 -export([countValues/1]).
 -export([completeByte/1]).
+-export([decompress/1]).
 
-%https://stackoverflow.com/questions/14447575/reading-file-whole-flat-text-file-to-an-array
+%COMPRESOR
 
 %Leer contenido de archivo a binario:
 getFileContent(Filename) -> {ok, Text} = file:read_file(Filename), Text.
@@ -31,12 +31,15 @@ getBinaryToList(Filename) -> binary:bin_to_list(getFileContent(Filename)). %list
 %Obtener la tabla de simbolos de una lista:
 generateList(_X,0)->[];
 generateList(X,N)->[X]++generateList(X,N-1).
+
 countSymbol(_X,[])->0;
 countSymbol(X,[X|T])->1 + countSymbol(X,T);
 countSymbol(X,[_H|T])->countSymbol(X,T).
+
 getSymbolsNumber([])->[];
-getSymbolsNumber([H|T])->Number = countSymbol(H,T) , [[1 + Number|H]] ++ 
-								  getSymbolsNumber(T--generateList(H,Number)).
+getSymbolsNumber([H|T])->Number = countSymbol(H,T) , 
+						 [[1 + Number|H]] ++ 
+					     getSymbolsNumber(T--generateList(H,Number)).
 
 %Generar arbol a partir de lista de simbolos:
 %Ordenar lista generada por getSymbolsNumber de mayor a menor segun la Frecuencia. Basado en Quicksort
@@ -62,11 +65,11 @@ huffman([{[F1|E1],I1,D1},{[F2|E2],I2,D2}|T])
 
 tablaSimbolos({})->[];
 tablaSimbolos(Arb) -> tablaSimbolos(Arb,[]).
-tablaSimbolos({[_F|E],{},{}},Path) -> [{E,Path}];
+tablaSimbolos({[_F|E],{},{}},Path) -> [[E,Path]];
 tablaSimbolos({_R,I,D},Path) -> tablaSimbolos(I,Path++[0])++tablaSimbolos(D,Path++[1]).
 
 findCode(_S,[])->[];
-findCode(S,[{Symbol,Code}|_T]) when Symbol == S -> Code;
+findCode(S,[[Symbol,Code]|_T]) when Symbol == S -> Code;
 findCode(S,[_H|T])-> findCode(S,T).
 
 toCode([],_T)->[];
@@ -78,22 +81,19 @@ completeByte(L)->completeByte(L,countValues(L)).
 completeByte(L,X) when X > 7->L;
 completeByte(L,_X)-> completeByte(L ++ [0],countValues(L)+1).
 
-
-toBytes(L)-> toBytes(L,8,[]).
-toBytes([],_N,Acum)->[completeByte(Acum)];
-toBytes([H|T],1,Acum)-> [Acum ++ [H]] ++ toBytes(T,8,[]);
-toBytes([H|T],N,Acum)-> toBytes(T,N-1,Acum++[H]).
-
-ext(Filename) -> ext(Filename, "").
-ext([46 | Rest], _)  -> ext(Rest, Rest);
-ext([_ | Rest], Acc) -> ext(Rest, Acc);
-ext(_, Acc)-> Acc. 
+%toBytes(L)-> toBytes(L,8,[]).
+%toBytes([],_N,Acum)->[completeByte(Acum)];
+%toBytes([H|T],1,Acum)-> [Acum ++ [H]] ++ toBytes(T,8,[]);
+%toBytes([H|T],N,Acum)-> toBytes(T,N-1,Acum++[H]).
 
 compress(F) -> BinList = getBinaryToList(F), 
 			   Tabla = tablaSimbolos(huffman(crearListaArboles(sortAscending(getSymbolsNumber(BinList))))),
 			   Code = toCode(BinList,Tabla),
-			   Compress = {toBytes(Code), Tabla, ext(F)},
-			   file:write_file("", Compress).
+			   Compress = [Code, Tabla, filename:extension(F)],
+			   file:write_file(filename:rootname(F),erlang:term_to_binary(Compress)),
+			   Compress.
 
 
+%DECOMPRESOR
 
+decompress(F)->erlang:binary_to_term(getFileContent(F)).
