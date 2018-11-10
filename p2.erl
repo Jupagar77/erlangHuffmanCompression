@@ -19,6 +19,7 @@
 -export([countValues/1]).
 -export([completeByte/1]).
 -export([decompress/1]).
+-export([removeRepeated/2]).
 
 %COMPRESOR
 
@@ -36,10 +37,16 @@ countSymbol(_X,[])->0;
 countSymbol(X,[X|T])->1 + countSymbol(X,T);
 countSymbol(X,[_H|T])->countSymbol(X,T).
 
+removeRepeated([],_S)->[];
+removeRepeated([H|T],H)->removeRepeated(T,H);
+removeRepeated([H|T],S)->[H]++removeRepeated(T,S).
+
 getSymbolsNumber([])->[];
-getSymbolsNumber([H|T])->Number = countSymbol(H,T) , 
-						 [[1 + Number|H]] ++ 
-					     getSymbolsNumber(T--generateList(H,Number)).
+getSymbolsNumber([H|T])->Number = countSymbol(H,T) ,
+						 %io:fwrite("~9..0B |~10w| ~9..0B ~n", [trunc(N), H, Number]), 
+						 %Old = T -- generateList(H,Number), bajo performance
+						 New = removeRepeated(T,H),
+						 [[1 + Number|H]] ++ getSymbolsNumber(New).
 
 %Generar arbol a partir de lista de simbolos:
 %Ordenar lista generada por getSymbolsNumber de mayor a menor segun la Frecuencia. Basado en Quicksort
