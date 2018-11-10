@@ -113,6 +113,10 @@ crearArbolHuffmanInterno(Char,[Val|T],{R,I,D}) when Val =:= 0 -> {R,crearArbolHu
 crearArbolHuffmanInterno(Char,[Val|T],{R,I,D}) when Val =:= 1 -> {R,I,crearArbolHuffmanInterno(Char,T,D)}.
 
 
+descompresor([X|Y],{R,{V,I,D}},_List)-> 
+	when R =/= null and I =:= null and D =:= null ->
+		List = R,
+	descompresor([X+1|Y],{R,{V,I,D}},List). 
 
 %[[97,[0]],
 %  [32,[1,0]],
