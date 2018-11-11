@@ -134,7 +134,7 @@ crearArbolHuffmanInterno(Char,[Val|T],{R,I,D}) when Val =:= 1 -> {R,I,crearArbol
 descomprimir(_Arb,[]) -> [];
 descomprimir(Arb,[H|_T]) -> descomprimir(Arb,Arb,H,[]).
 
-descomprimir(Arb,{R,{},{}},L,Lchar) -> descomprimir(Arb,Arb,L,Lchar ++ [R]);
+descomprimir(Arb,{R,{},{}},L,Lchar) -> descomprimir(Arb,Arb,L, [Lchar|[R]] );
 descomprimir(_,_,[],Lchar) -> Lchar;
 descomprimir(Arb,{_R,I,_D},[H|T],Lchar) when H =:= 0 -> descomprimir(Arb,I,T,Lchar);
 descomprimir(Arb,{_R,_I,D},[H|T],Lchar) when H =:= 1 -> descomprimir(Arb,D,T,Lchar).
@@ -142,7 +142,7 @@ descomprimir(Arb,{_R,_I,D},[H|T],Lchar) when H =:= 1 -> descomprimir(Arb,D,T,Lch
 
 decompressLista([],_F)->[];
 decompressLista([[H|C]|T],Newfile)-> ArbolHuffman = crearArbolHuffman(H),
-							 Decompresion = descomprimir(ArbolHuffman,C),
+							 Decompresion = lists:flatten(descomprimir(ArbolHuffman,C)),
 							 file:write_file(Newfile,Decompresion,[append]),
 							 decompressLista(T,Newfile).
 
