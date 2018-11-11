@@ -22,6 +22,7 @@
 -export([removeRepeated/2]).
 
 -export([crearArbolHuffman/1]).
+-export([descomprimir/2]).
 
 %COMPRESOR
 
@@ -103,11 +104,14 @@ compress(F) -> BinList = getBinaryToList(F),
 			   Compress.
 
 
+%--------------------------------------------------------
+
 %DECOMPRESOR
 
 decompress(F)->erlang:binary_to_term(getFileContent(F)).
 
 
+%Recibe tabla de simbolos y crea un arbol con eso
 crearArbolHuffman([]) -> {};
 crearArbolHuffman(L) -> crearArbolHuffman(L,{root,{},{}}).
 crearArbolHuffman([],Arb) -> Arb;
@@ -119,10 +123,24 @@ crearArbolHuffmanInterno(Char,[Val|T],{}) when Val =:= 1 -> {null,{},crearArbolH
 crearArbolHuffmanInterno(Char,[Val|T],{R,I,D}) when Val =:= 0 -> {R,crearArbolHuffmanInterno(Char,T,I),D};
 crearArbolHuffmanInterno(Char,[Val|T],{R,I,D}) when Val =:= 1 -> {R,I,crearArbolHuffmanInterno(Char,T,D)}.
 
-descompresor([X|Y],{R,{V,I,D}},_List)-> 
-	when R =/= null and I =:= null and D =:= null ->
-		List = R,
-	descompresor([X+1|Y],{R,{V,I,D}},List).
+
+%Recibe lista de binarios y arbol de huffman parra interpretar. Retorna lista de caracteres para interpetados
+descomprimir(_Arb,[]) -> [];
+descomprimir(Arb,L) -> descomprimir(Arb,Arb,L,[]).
+
+descomprimir(Arb,{R,{},{}},L,Lchar) -> descomprimir(Arb,Arb,L,Lchar ++ [R]);
+descomprimir(_,_,[],Lchar) -> Lchar;
+descomprimir(Arb,{_R,I,_D},[H|T],Lchar) when H =:= 0 -> descomprimir(Arb,I,T,Lchar);
+descomprimir(Arb,{_R,_I,D},[H|T],Lchar) when H =:= 1 -> descomprimir(Arb,D,T,Lchar).
+
+
+
+
+
+%descompresor([X|Y],{R,{V,I,D}},_List)-> 
+%	when R =/= null and I =:= null and D =:= null ->
+%		List = R,
+%	descompresor([X+1|Y],{R,{V,I,D}},List).
 
 
 %[[97,[0]],
