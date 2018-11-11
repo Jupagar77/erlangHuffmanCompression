@@ -12,17 +12,23 @@
 -export([huffman/1]).
 -export([tablaSimbolos/1]).
 
--export([compress/1]).
+-export([compress/3]).
 -export([findCode/2]).
 -export([toCode/2]).
-%-export([toBytes/1]).
+-export([group/1]).
 -export([countValues/1]).
 -export([completeByte/1]).
--export([decompress/1]).
+-export([leerArchivoComprimido/1]).
 -export([removeRepeated/2]).
 
 -export([crearArbolHuffman/1]).
 -export([descomprimir/2]).
+-export([decompress/2]).
+-export([decompressLista/2]).
+
+-export([hiloComprimir/3]).
+-export([archivosListo/4]).
+-export([huffmanServer/3]).
 
 %COMPRESOR
 
@@ -88,28 +94,26 @@ toCode([H|T],Table)-> findCode(H,Table) ++ toCode(T,Table).
 countValues([])->0;
 countValues([_H|T])->countValues(T)+1.
 completeByte(L)->completeByte(L,countValues(L)).
-completeByte(L,X) when X > 7->L;
+completeByte(L,X) when X > 1->L;
 completeByte(L,_X)-> completeByte(L ++ [0],countValues(L)+1).
 
-%toBytes(L)-> toBytes(L,8,[]).
-%toBytes([],_N,Acum)->[completeByte(Acum)];
-%toBytes([H|T],1,Acum)-> [Acum ++ [H]] ++ toBytes(T,8,[]);
-%toBytes([H|T],N,Acum)-> toBytes(T,N-1,Acum++[H]).
+group(L)-> group(L,2,[]).
+group([],_N,Acum)->Acum;
+group([H|T],1,Acum)-> [Acum ++ [H]] ++ group(T,2,[]);
+group([H|T],N,Acum)-> group(T,N-1,Acum++[H]).
 
-compress(F) -> BinList = getBinaryToList(F), 
+compress(F, Server, N) -> BinList = getBinaryToList(F), 
 			   Tabla = tablaSimbolos(huffman(crearListaArboles(sortAscending(getSymbolsNumber(BinList))))),
 			   Code = toCode(BinList,Tabla),
-			   Compress = [Tabla,Code,filename:extension(F)],
-			   file:write_file(filename:rootname(F),erlang:term_to_binary(Compress)),
-			   Compress.
+			   Compress = [Tabla,Code],
+			   %file:write_file(filename:rootname(F),erlang:term_to_binary(Compress)),
+			   Server ! {Compress,N}.
 
 
 %--------------------------------------------------------
 
 %DECOMPRESOR
-
-decompress(F)->erlang:binary_to_term(getFileContent(F)).
-
+leerArchivoComprimido(F)->erlang:binary_to_term(getFileContent(F)).
 
 %Recibe tabla de simbolos y crea un arbol con eso
 crearArbolHuffman([]) -> {};
@@ -124,9 +128,11 @@ crearArbolHuffmanInterno(Char,[Val|T],{R,I,D}) when Val =:= 0 -> {R,crearArbolHu
 crearArbolHuffmanInterno(Char,[Val|T],{R,I,D}) when Val =:= 1 -> {R,I,crearArbolHuffmanInterno(Char,T,D)}.
 
 
-%Recibe lista de binarios y arbol de huffman parra interpretar. Retorna lista de caracteres para interpetados
+%Recibe lista de binarios y arbol de huffman para interpretar. 
+%Retorna lista de caracteres para interpetarlos.
+
 descomprimir(_Arb,[]) -> [];
-descomprimir(Arb,L) -> descomprimir(Arb,Arb,L,[]).
+descomprimir(Arb,[H|_T]) -> descomprimir(Arb,Arb,H,[]).
 
 descomprimir(Arb,{R,{},{}},L,Lchar) -> descomprimir(Arb,Arb,L,Lchar ++ [R]);
 descomprimir(_,_,[],Lchar) -> Lchar;
@@ -134,20 +140,33 @@ descomprimir(Arb,{_R,I,_D},[H|T],Lchar) when H =:= 0 -> descomprimir(Arb,I,T,Lch
 descomprimir(Arb,{_R,_I,D},[H|T],Lchar) when H =:= 1 -> descomprimir(Arb,D,T,Lchar).
 
 
+decompressLista([],_F)->[];
+decompressLista([[H|C]|T],Newfile)-> ArbolHuffman = crearArbolHuffman(H),
+							 Decompresion = descomprimir(ArbolHuffman,C),
+							 file:write_file(Newfile,Decompresion,[append]),
+							 decompressLista(T,Newfile).
 
+decompress(F,Newfile)-> ListaCompresion = group(leerArchivoComprimido(F)),
+				decompressLista(ListaCompresion,Newfile).
 
+hiloComprimir(F,Server,N)->spawn(fun()->compress(F,Server,N) end).
 
-%descompresor([X|Y],{R,{V,I,D}},_List)-> 
-%	when R =/= null and I =:= null and D =:= null ->
-%		List = R,
-%	descompresor([X+1|Y],{R,{V,I,D}},List).
+archivosListo(C,C,Comprimido,Filename)->io:format("Comprimiendo archivo!~n", []),
+										file:write_file(Filename,erlang:term_to_binary(Comprimido)),
+										huffmanServer(C,Comprimido,Filename);
+archivosListo(C,_B,Comprimido,Filename)->huffmanServer(C,Comprimido,Filename).
 
+huffmanServer(C,L,Filename)->
+    receive
+        {Comprimido,Cantidad} -> io:format("Recibiendo sub-archivo comprimido!~n", []), 
+        						archivosListo(C+1,Cantidad,L++Comprimido,Filename);
+        finalizar->io:format("Me muero~n", []);
+        limpiar->huffmanServer(0,[],Filename);
+        X -> io:format("recibo: ~p~n",[X]), huffmanServer(C,L,Filename)
+    end.
 
-%[[97,[0]],
-%  [32,[1,0]],
-%  [116,[1,1,0,0]],
-%  [108,[1,1,0,1]],
-%  [99,[1,1,1,0]],
-%  [115,[1,1,1,1,0]],
-%  [106,[1,1,1,1,1,0]],
-%  [101,[1,1,1,1,1,1]]]
+% Prueba:
+% HuffmanServer = spawn (fun()->p2:huffmanServer(0,[],"ejem.txt.huff")end).
+% p2:hiloComprimir("ejem1.txt", HuffmanServer,2).
+% p2:hiloComprimir("ejem2.txt", HuffmanServer,2).
+% p2:decompress("ejem.txt.huff", "ejem.txt").
