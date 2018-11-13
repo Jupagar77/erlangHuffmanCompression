@@ -19,6 +19,7 @@
 -export([group8/1]).
 -export([countValues/1]).
 -export([completeByte/1]).
+-export([completeByteRev/1]).
 -export([leerArchivoComprimido/1]).
 -export([removeRepeated/2]).
 
@@ -114,6 +115,10 @@ completeByte(L)->completeByte(L,countValues(L)).
 completeByte(L,X) when X > 7->L;
 completeByte(L,_X)-> completeByte(L ++ [0],countValues(L)+1).
 
+completeByteRev(L)->completeByteRev(L,countValues(L)).
+completeByteRev(L,X) when X > 7->L;
+completeByteRev(L,_X)-> completeByteRev([0|L],countValues(L)+1).
+
 group(L)-> group(L,2,[]).
 group([],_N,Acum)->Acum;
 group([H|T],1,Acum)-> [Acum ++ [H]] ++ group(T,2,[]);
@@ -128,7 +133,7 @@ listToDec([])->[];
 listToDec([H|T])-> [bin2dec(lists:concat(H))] ++ listToDec(T).
 
 decToList([])->[];
-decToList([H|T])-> [dec2bin(H)] ++ decToList(T).
+decToList([H|T])-> [completeByteRev(dec2bin(H))] ++ decToList(T).
 
 tablaSymToTuple([])->[];
 tablaSymToTuple([[H|C]|T])-> [{H,lists:concat(C)}] ++ tablaSymToTuple(T).
@@ -141,8 +146,7 @@ compress(F, Server) -> BinList = getBinaryToList(F),
 			   Code = toCode(BinList,Tabla),
 			   CodeByn = group8(Code),
 			   CodeDec = listToDec(CodeByn),
-			   CodeByn.
-			   %Server ! {comprimir,Tabla,CodeDec}.
+			   Server ! {comprimir,Tabla,CodeDec}.
 
 
 %--------------------------------------------------------
@@ -195,7 +199,7 @@ huffmanServer(C,Symbol,Filename,N)->
     receive
 
         {comprimir,Simbolos,Codigo} -> io:format("Recibiendo sub-archivo comprimido!~n", []),
-        						archivosListo(C+1,N,Codigo,Filename,Symbol++Simbolos);
+        						archivosListo(C+1,N,Codigo,Filename,Simbolos);
 
         {descomprimir,Filename,Newfile} -> io:format("Descomprimiendo archivo!~n", []),
         						   	ListaCompresion = leerArchivoComprimido(Filename),
@@ -204,7 +208,7 @@ huffmanServer(C,Symbol,Filename,N)->
         						   	ArbolHuffman = crearArbolHuffman(Symbol),
 									Decompresion = lists:flatten(descomprimir(ArbolHuffman,ListaBin)),
 									file:write_file(Newfile,Decompresion);
-
+		caca -> io:format("recibo: ~p~n",[Symbol]), huffmanServer(C,Symbol,Filename,N);
         finalizar->io:format("Me muero~n", []);
         {Newfile,Newn}->io:format("Reiniciando servidor!~n", []), huffmanServer(0,[],Newfile,Newn);
         X -> io:format("recibo: ~p~n",[X]), huffmanServer(C,Symbol,Filename,N)
@@ -213,3 +217,4 @@ huffmanServer(C,Symbol,Filename,N)->
 % Prueba:
 % HuffmanServer = spawn (fun()->p2:huffmanServer(0,[],"mama.txt.huff",1)end).
 % p2:hiloComprimir("mama.txt", HuffmanServer).
+% HuffmanServer ! {descomprimir,"mama.txt.huff","mamaD.txt"}.
