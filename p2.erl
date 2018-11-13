@@ -30,13 +30,19 @@
 
 -export([hiloComprimir/2]).
 -export([archivosListo/5]).
--export([huffmanServer/4]).
+-export([huffmanServer/5]).
 
 -export([bin2dec/1, bin2dec_/2]).
 -export([dec2bin/1]).
 -export([listToDec/1]).
 -export([decToList/1]).
 -export([tablaSymToTuple/1]).
+
+-export([getFrecuenciaRepetidaSuma/2]).
+-export([sumarFrecuencias/2]).
+
+-export([mergeFrecuencias/2]).
+-export([getFrecuenciaRepetida/2]).
 
 bin2dec("") ->0;
 bin2dec(List) -> bin2dec_(List, 0).
@@ -68,9 +74,7 @@ removeRepeated([H|T],H)->removeRepeated(T,H);
 removeRepeated([H|T],S)->[H]++removeRepeated(T,S).
 
 getSymbolsNumber([])->[];
-getSymbolsNumber([H|T])->Number = countSymbol(H,T) ,
-						 %io:fwrite("~9..0B |~10w| ~9..0B ~n", [trunc(N), H, Number]), 
-						 %Old = T -- generateList(H,Number), bajo performance
+getSymbolsNumber([H|T])->Number = countSymbol(H,T),
 						 New = removeRepeated(T,H),
 						 [[1 + Number|H]] ++ getSymbolsNumber(New).
 
@@ -138,15 +142,15 @@ decToList([H|T])-> [completeByteRev(dec2bin(H))] ++ decToList(T).
 tablaSymToTuple([])->[];
 tablaSymToTuple([[H|C]|T])-> [{H,lists:concat(C)}] ++ tablaSymToTuple(T).
 
-compress(F, Server) -> BinList = getBinaryToList(F), 
-			   Tabla = tablaSimbolos(huffman(crearListaArboles(sortAscending(getSymbolsNumber(BinList))))),
-			   %TablaTuple = tablaSymToTuple(Tabla),
-			   %DicTabla = dict:from_list(TablaTuple),
+compress(F, Server) -> 	BinList = getBinaryToList(F), 
+			   			%Tabla = tablaSimbolos(huffman(crearListaArboles(sortAscending(getSymbolsNumber(BinList))))),
+			   			%TablaTuple = tablaSymToTuple(Tabla),
+			   			%DicTabla = dict:from_list(TablaTuple),
 
-			   Code = toCode(BinList,Tabla),
-			   CodeByn = group8(Code),
-			   CodeDec = listToDec(CodeByn),
-			   Server ! {comprimir,Tabla,CodeDec}.
+			   			%Code = toCode(BinList,Tabla),
+			   			%CodeByn = group8(Code),
+			   			%CodeDec = listToDec(CodeByn),
+			   			Server ! {comprimir,sortAscending(getSymbolsNumber(BinList)),BinList}.
 
 
 %--------------------------------------------------------
@@ -190,16 +194,39 @@ decompress(F,Newfile)-> ListaCompresion = leerArchivoComprimido(F),
 
 hiloComprimir(F,Server)->spawn(fun()->compress(F,Server) end).
 
-archivosListo(C,C,Comprimido,Filename,S)->io:format("Comprimiendo archivo!~n", []),
-										file:write_file(Filename,(Comprimido)),
-										huffmanServer(C,S,Filename,C);
-archivosListo(C,B,_Comprimido,Filename,S)->huffmanServer(C,S,Filename,B).
+getFrecuenciaRepetidaSuma(L,[])->L;
+getFrecuenciaRepetidaSuma([H|T],[[Cant|T]|_Cola]) -> [ H+Cant | T];
+getFrecuenciaRepetidaSuma([H|T],[[_Cant|_Col]|Cola]) -> getFrecuenciaRepetidaSuma([H|T],Cola).
+sumarFrecuencias([],_L)->[];
+sumarFrecuencias([H|T],L)-> [getFrecuenciaRepetidaSuma(H,L)] ++ sumarFrecuencias(T,L).
 
-huffmanServer(C,Symbol,Filename,N)->
+getFrecuenciaRepetida(L,[])->L;
+getFrecuenciaRepetida([_H|T],[[_Cant|T]|_Cola]) -> [];
+getFrecuenciaRepetida([H|T],[[Cant|_Col]|Cola]) -> getFrecuenciaRepetida([H|T],Cola).
+
+mergeFrecuencias(L1,L2)->mergeFrecuencias(L1,L2,[]).
+mergeFrecuencias([],L,Accum)->L ++ Accum;
+mergeFrecuencias([H|T],L,Accum)->  mergeFrecuencias(T,L,Accum ++ [getFrecuenciaRepetida(H,L)]).
+
+archivosListo(C,C,Sim,Filename,Bin)->	io:format("Comprimiendo archivo!~n", []),
+
+										Tabla = tablaSimbolos(huffman(crearListaArboles(Sim))),
+
+										Code = toCode(Bin,Tabla),
+										CodeByn = group8(Code),
+										CodeDec = listToDec(CodeByn),
+										file:write_file(Filename,(CodeDec)),
+								  		huffmanServer(C,Tabla,Filename,C,Bin);
+
+archivosListo(C,B,Sim,Filename,Bin)->huffmanServer(C,Sim,Filename,B,Bin).
+
+huffmanServer(C,Symbol,Filename,N,Binaries)->
     receive
 
-        {comprimir,Simbolos,Codigo} -> io:format("Recibiendo sub-archivo comprimido!~n", []),
-        							   archivosListo(C+1,N,Codigo,Filename,Simbolos);
+        {comprimir,Simbolos,Binary} -> io:format("Recibiendo tabla de frecuencias!~n", []),
+        						Sumafrec = sumarFrecuencias(Symbol,Simbolos),
+        						Mergefrec = sortAscending(mergeFrecuencias(Simbolos,Sumafrec)),
+        					    archivosListo(C+1,N,Mergefrec,Filename,Binaries ++ Binary);
 
         {descomprimir,Filename,Newfile} -> io:format("Descomprimiendo archivo!~n", []),
         							ArbolHuffman = crearArbolHuffman(Symbol),
@@ -209,13 +236,12 @@ huffmanServer(C,Symbol,Filename,N)->
         						
 									Decompresion = lists:flatten(descomprimir(ArbolHuffman,[ListaBin])),
 									file:write_file(Newfile,Decompresion);
-		print -> io:format("Simbolos: ~p~n",[Symbol]), huffmanServer(C,Symbol,Filename,N);
+		print -> io:format("Simbolos: ~p~n",[Symbol]), huffmanServer(C,Symbol,Filename,N,Binaries);
         finalizar->io:format("Me muero~n", []);
-        {Newfile,Newn}->io:format("Reiniciando servidor!~n", []), huffmanServer(0,[],Newfile,Newn);
-        X -> io:format("recibo: ~p~n",[X]), huffmanServer(C,Symbol,Filename,N)
+        X -> io:format("recibo: ~p~n",[X]), huffmanServer(C,Symbol,Filename,N,Binaries)
     end.
 
 % Prueba:
-% HuffmanServer = spawn (fun()->p2:huffmanServer(0,[],"mama.txt.huff",1)end).
-% p2:hiloComprimir("mama.txt", HuffmanServer).
+% HuffmanServer = spawn (fun()->p2:huffmanServer(0,[],"mama.txt.huff",2,[])end).
+% p2:hiloComprimir("mama01", HuffmanServer).
 % HuffmanServer ! {descomprimir,"mama.txt.huff","mamaD.txt"}.
