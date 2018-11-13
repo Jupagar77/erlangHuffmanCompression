@@ -40,7 +40,7 @@ getBinaryToList(Filename) -> binary:bin_to_list(getFileContent(Filename)). %list
 
 %Obtener la tabla de simbolos de una lista:
 generateList(_X,0)->[];
-generateList(X,N)->[X]++generateList(X,N-1).
+generateList(X,N)->[X|generateList(X,N-1)].
 
 countSymbol(_X,[])->0;
 countSymbol(X,[X|T])->1 + countSymbol(X,T);
@@ -48,14 +48,14 @@ countSymbol(X,[_H|T])->countSymbol(X,T).
 
 removeRepeated([],_S)->[];
 removeRepeated([H|T],H)->removeRepeated(T,H);
-removeRepeated([H|T],S)->[H]++removeRepeated(T,S).
+removeRepeated([H|T],S)->[H|removeRepeated(T,S)].
 
 getSymbolsNumber([])->[];
 getSymbolsNumber([H|T])->Number = countSymbol(H,T) ,
 						 %io:fwrite("~9..0B |~10w| ~9..0B ~n", [trunc(N), H, Number]), 
 						 %Old = T -- generateList(H,Number), bajo performance
 						 New = removeRepeated(T,H),
-						 [[1 + Number|H]] ++ getSymbolsNumber(New).
+						 [[1 + Number|H]|getSymbolsNumber(New)].
 
 %Generar arbol a partir de lista de simbolos:
 %Ordenar lista generada por getSymbolsNumber de mayor a menor segun la Frecuencia. Basado en Quicksort
@@ -77,7 +77,7 @@ huffman([{[F1|E1],I1,D1},{[F2|E2],I2,D2}|[]])
 	-> Suma = F1+F2, NuevaRaiz = [Suma|null], {NuevaRaiz,{[F1|E1],I1,D1},{[F2|E2],I2,D2}};
 huffman([{[F1|E1],I1,D1},{[F2|E2],I2,D2}|T])
 	-> Suma = F1+F2, NuevaRaiz = [Suma|null], Arb = {NuevaRaiz,{[F1|E1],I1,D1},{[F2|E2],I2,D2}},
-	ListaActualizada = [Arb] ++ T, huffman(sortAscendingArboles(ListaActualizada)).
+	ListaActualizada = [Arb|T], huffman(sortAscendingArboles(ListaActualizada)).
 
 tablaSimbolos({})->[];
 tablaSimbolos(Arb) -> tablaSimbolos(Arb,[]).
