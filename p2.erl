@@ -202,20 +202,24 @@ sumarFrecuencias([H|T],L)-> [getFrecuenciaRepetidaSuma(H,L)] ++ sumarFrecuencias
 
 getFrecuenciaRepetida(L,[])->L;
 getFrecuenciaRepetida([_H|T],[[_Cant|T]|_Cola]) -> [];
-getFrecuenciaRepetida([H|T],[[Cant|_Col]|Cola]) -> getFrecuenciaRepetida([H|T],Cola).
+getFrecuenciaRepetida([H|T],[[_Cant|_Col]|Cola]) -> getFrecuenciaRepetida([H|T],Cola).
 
 mergeFrecuencias(L1,L2)->mergeFrecuencias(L1,L2,[]).
 mergeFrecuencias([],L,Accum)->L ++ Accum;
 mergeFrecuencias([H|T],L,Accum)->  mergeFrecuencias(T,L,Accum ++ [getFrecuenciaRepetida(H,L)]).
 
 archivosListo(C,C,Sim,Filename,Bin)->	io:format("Comprimiendo archivo!~n", []),
-
+										io:format("Generando tabla de simbolos!~n", []),
 										Tabla = tablaSimbolos(huffman(crearListaArboles(Sim))),
-
+										io:format("Generando codigo del archivo total!~n", []),
 										Code = toCode(Bin,Tabla),
+										io:format("Pasando a bytes!~n", []),
 										CodeByn = group8(Code),
+										io:format("Pasando a decimal!~n", []),
 										CodeDec = listToDec(CodeByn),
+										io:format("Escribiendo archivo!~n", []),
 										file:write_file(Filename,(CodeDec)),
+										io:format("Archivo comprimido!~n", []),
 								  		huffmanServer(C,Tabla,Filename,C,Bin);
 
 archivosListo(C,B,Sim,Filename,Bin)->huffmanServer(C,Sim,Filename,B,Bin).
