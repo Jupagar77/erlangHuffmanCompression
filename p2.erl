@@ -185,7 +185,7 @@ decompressLista([[H|C]|T],Newfile)-> ArbolHuffman = crearArbolHuffman(H),
 							 file:write_file(Newfile,Decompresion,[append]),
 							 decompressLista(T,Newfile).
 
-decompress(F,Newfile)-> ListaCompresion = group(leerArchivoComprimido(F)),
+decompress(F,Newfile)-> ListaCompresion = leerArchivoComprimido(F),
 				decompressLista(ListaCompresion,Newfile).
 
 hiloComprimir(F,Server)->spawn(fun()->compress(F,Server) end).
@@ -199,16 +199,17 @@ huffmanServer(C,Symbol,Filename,N)->
     receive
 
         {comprimir,Simbolos,Codigo} -> io:format("Recibiendo sub-archivo comprimido!~n", []),
-        						archivosListo(C+1,N,Codigo,Filename,Simbolos);
+        							   archivosListo(C+1,N,Codigo,Filename,Simbolos);
 
         {descomprimir,Filename,Newfile} -> io:format("Descomprimiendo archivo!~n", []),
+        							ArbolHuffman = crearArbolHuffman(Symbol),
+									
         						   	ListaCompresion = leerArchivoComprimido(Filename),
         						   	ListaBin = lists:flatten(decToList(ListaCompresion)),
-
-        						   	ArbolHuffman = crearArbolHuffman(Symbol),
-									Decompresion = lists:flatten(descomprimir(ArbolHuffman,ListaBin)),
+        						
+									Decompresion = lists:flatten(descomprimir(ArbolHuffman,[ListaBin])),
 									file:write_file(Newfile,Decompresion);
-		caca -> io:format("recibo: ~p~n",[Symbol]), huffmanServer(C,Symbol,Filename,N);
+		print -> io:format("Simbolos: ~p~n",[Symbol]), huffmanServer(C,Symbol,Filename,N);
         finalizar->io:format("Me muero~n", []);
         {Newfile,Newn}->io:format("Reiniciando servidor!~n", []), huffmanServer(0,[],Newfile,Newn);
         X -> io:format("recibo: ~p~n",[X]), huffmanServer(C,Symbol,Filename,N)
