@@ -25,7 +25,7 @@
 
 -export([crearArbolHuffman/1]).
 -export([descomprimir/2]).
--export([decompress/2]).
+-export([decompress/3]).
 -export([decompressLista/2]).
 
 -export([hiloComprimir/2]).
@@ -116,25 +116,32 @@ findCode(S,[_H|T])-> findCode(S,T).
 %toCode([],_Dict)->[];
 %toCode([H|T],Dict)-> [dict:fetch(H,Dict) | toCode(T,Dict)].
 
-writeList([],_Filename)->ok;
-writeList([H|T],Filename)-> file:write_file(Filename,[H],[append]), writeList(T,Filename).
+writeList([],_Filename,_Fd)->ok;
+writeList([H|T],Filename,Fd)-> 
+								%file:write_file(Filename,[H],[append]), 
+								file:write(Fd, [H]),
+								writeList(T,Filename,Fd).
 
-toCode(L,Dict,Filename)->toCode(L,Dict,[],0,[],Filename).
-toCode([],_Dict,Acum,_Size,Listafinal,Filename)-> Final = group8(Acum), 
+toCode(L,Dict,Filename)-> {ok, Fd} = file:open(Filename, [append, delayed_write]),
+							%createFile1(Fd, 4 bsl 20),
+							toCode(L,Dict,[],0,[],Filename,Fd),
+							file:close(Fd),
+							ok.
+%toCode(L,Dict,[],0,[],Filename).
+toCode([],_Dict,Acum,_Size,_Listafinal,Filename,Fd)-> Final = group8(Acum), 
 										 FinalDec = listToDec(Final),
-										 writeList(FinalDec,Filename);
+										 writeList(FinalDec,Filename,Fd);
 
-toCode([H|T],Dict,Acum,Size,Listafinal,Filename) when Size >= 8 ->
+toCode([H|T],Dict,Acum,Size,_Listafinal,Filename,Fd) when Size >= 8 ->
 								TotalAcumm = Acum ++ dict:fetch(H,Dict),
 							    [E|R] = group8sincomplete(TotalAcumm),
 								EDec = bin2dec(lists:concat(E)),
-								file:write_file(Filename,[EDec],[append,delayed_write]),
+								file:write(Fd, [EDec]),
+								%file:write_file(Filename,[EDec],[append,delayed_write]),
 								FlattenR = lists:flatten(R),
-								toCode(T,Dict,FlattenR,length(FlattenR),[],Filename);
-
-toCode([H|T],Dict,Acum,_Size,Listafinal,Filename)->TotalAcumm = Acum ++ dict:fetch(H,Dict),
-							  toCode(T,Dict,TotalAcumm,length(TotalAcumm),Listafinal,Filename).
-
+								toCode(T,Dict,FlattenR,length(FlattenR),[],Filename,Fd);
+toCode([H|T],Dict,Acum,_Size,Listafinal,Filename,Fd)->TotalAcumm = Acum ++ dict:fetch(H,Dict),
+							  toCode(T,Dict,TotalAcumm,length(TotalAcumm),Listafinal,Filename,Fd).
 
 %dict:fetch(H,Dict)
 
@@ -174,13 +181,6 @@ tablaSymToTuple([])->[];
 tablaSymToTuple([[H|C]|T])-> [{H,lists:concat(C)}|tablaSymToTuple(T)].
 
 compress(F, Server) -> 	BinList = getBinaryToList(F), 
-			   			%Tabla = tablaSimbolos(huffman(crearListaArboles(sortAscending(getSymbolsNumber(BinList))))),
-			   			%TablaTuple = tablaSymToTuple(Tabla),
-			   			%DicTabla = dict:from_list(TablaTuple),
-
-			   			%Code = toCode(BinList,Tabla),
-			   			%CodeByn = group8(Code),
-			   			%CodeDec = listToDec(CodeByn),
 			   			Server ! {comprimir,sortAscending(getSymbolsNumber(BinList)),BinList}.
 
 
@@ -220,8 +220,22 @@ decompressLista([[H|C]|T],Newfile)-> ArbolHuffman = crearArbolHuffman(H),
 							 file:write_file(Newfile,Decompresion,[append]),
 							 decompressLista(T,Newfile).
 
-decompress(F,Newfile)-> ListaCompresion = leerArchivoComprimido(F),
-				decompressLista(ListaCompresion,Newfile).
+decompress(Filename,Newfile,Symbolpath)-> 
+						io:format("Descomprimiendo archivo!~n", []),
+						io:format("Abriendo archivo de simbolos!~n", []),
+						{ok, S} = file:read_file(Symbolpath), S,
+						Symbol = erlang:binary_to_term(S),
+        				io:format("Creando arbol de huffmann!~n", []),
+        				ArbolHuffman = crearArbolHuffman(Symbol),
+						io:format("Abriendo archivo comprimido!~n", []),
+						{ok, F} = file:read_file(Filename), F,			
+        				ListaCompresion = binary:bin_to_list(F),
+        				io:format("Archivo comprimido de decimal a binario lista!~n", []),
+        				ListaBin = lists:flatten(decToList(ListaCompresion)),
+        				io:format("Descomprimiendo archivo!~n", []),		
+						Decompresion = lists:flatten(descomprimir(ArbolHuffman,[ListaBin])),
+						io:format("Escribiendo!~n", []),
+						file:write_file(Newfile,Decompresion).
 
 hiloComprimir(F,Server)->spawn(fun()->compress(F,Server) end).
 
@@ -242,19 +256,12 @@ mergeFrecuencias([H|T],L,Accum)->  mergeFrecuencias(T,L,Accum ++ [getFrecuenciaR
 archivosListo(C,C,Sim,Filename,Bin)->	io:format("Comprimiendo archivo!~n", []),
 										io:format("Generando tabla de simbolos!~n", []),
 										Tabla = tablaSimbolos(huffman(crearListaArboles(Sim))),
+										file:write_file(Filename ++ ".simbolos" ,[erlang:term_to_binary(Tabla)],[append]),
+										io:format("Tabla de simbolos escrita!~n", []),
 										io:format("Convirtiendo tabla en diccionario!~n", []),
 										Diccionario = dict:from_list(Tabla),
-										io:format("Generando codigo del archivo total!~n", []),
-										Code = toCode(Bin,Diccionario,Filename),
-										%io:format("Generando codigo flatten!~n", []),
-										%CodeFlatten = lists:flatten(Code),
-										%io:format("Pasando a bytes!~n", []),
-										%CodeByn = group8(CodeFlatten),
-										%io:format("Pasando a decimal!~n", []),
-										%CodeDec = listToDec(CodeByn),
-										%io:format("Code: ~p~n",[Code]),
-										%io:format("Escribiendo archivo!~n", []),
-										%file:write_file(Filename,Code),
+										io:format("Generando archivo comprimido!~n", []),
+										toCode(Bin,Diccionario,Filename),								
 										io:format("Archivo comprimido!~n", []),
 								  		huffmanServer(C,Tabla,Filename,C,Bin);
 
@@ -263,29 +270,23 @@ archivosListo(C,B,Sim,Filename,Bin)->huffmanServer(C,Sim,Filename,B,Bin).
 huffmanServer(C,Symbol,Filename,N,Binaries)->
     receive
 
-        {comprimir,Simbolos,Binary} -> io:format("Recibiendo tabla de frecuencias!~n", []),
-        						Sumafrec = sumarFrecuencias(Symbol,Simbolos),
-        						Mergefrec = sortAscending(mergeFrecuencias(Simbolos,Sumafrec)),
-        					    archivosListo(C+1,N,Mergefrec,Filename,Binaries ++ Binary);
+        {comprimir,Simbolos,Binary} -> 	io:format("Recibiendo tabla de frecuencias!~n", []),
+        								Sumafrec = sumarFrecuencias(Symbol,Simbolos),
+        								Mergefrec = sortAscending(mergeFrecuencias(Simbolos,Sumafrec)),
+        					    		archivosListo(C+1,N,Mergefrec,Filename,Binaries ++ Binary);
 
-        {descomprimir,Filename,Newfile} -> io:format("Descomprimiendo archivo!~n", []),
-        							ArbolHuffman = crearArbolHuffman(Symbol),
+        {descomprimir,Filename,Newfile} -> 	io:format("Descomprimiendo archivo!~n", []),
+        								   	ArbolHuffman = crearArbolHuffman(Symbol),
 									
-        						   	ListaCompresion = leerArchivoComprimido(Filename),
-        						   	ListaBin = lists:flatten(decToList(ListaCompresion)),
+        						   		   	ListaCompresion = leerArchivoComprimido(Filename),
+        						   			ListaBin = lists:flatten(decToList(ListaCompresion)),
         						
-									Decompresion = lists:flatten(descomprimir(ArbolHuffman,[ListaBin])),
-									file:write_file(Newfile,Decompresion);
-		print -> io:format("Simbolos: ~p~n",[Symbol]), huffmanServer(C,Symbol,Filename,N,Binaries);
-        finalizar->io:format("Me muero~n", []);
+											Decompresion = lists:flatten(descomprimir(ArbolHuffman,[ListaBin])),
+											file:write_file(Newfile,Decompresion);
 
-        test -> 						Tabla = tablaSimbolos(huffman(crearListaArboles(Symbol))),
-										io:format("Generando codigo del archivo total!~n", []),
-										Diccionario = dict:from_list(Tabla),
-										Code = toCode(Binaries,Diccionario,Filename),
-										%io:format("Binaries: ~p~n",[Binaries]),
-										%io:format("Tabla: ~p~n",[Tabla])
-										io:format("Tabla: ~p~n",[Code]);
+		print ->	io:format("Simbolos: ~p~n",[Symbol]), huffmanServer(C,Symbol,Filename,N,Binaries);
+        
+        finalizar->	io:format("Me muero~n", []);
 
         X -> io:format("recibo: ~p~n",[X]), huffmanServer(C,Symbol,Filename,N,Binaries)
     end.
@@ -293,4 +294,4 @@ huffmanServer(C,Symbol,Filename,N,Binaries)->
 % Prueba:
 % HuffmanServer = spawn (fun()->p2:huffmanServer(0,[],"pablo.mp4.huff",7,[])end).
 % p2:hiloComprimir("pablo00", HuffmanServer).
-% HuffmanServer ! {descomprimir,"mama.txt.huff","mamaD.txt"}.
+% HuffmanServer ! {descomprimir,"pablo.mp4.huff","pabloD.mp4"}.
